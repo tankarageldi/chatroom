@@ -19,14 +19,14 @@ client.connect((ip, port)) # Connect to the server
 # Function to send messages to the server
 def send():
     while True:
-        message = '{}: {}'.format(name, input(''))
+        message = '{} : {}'.format(name, input(''))
         client.send(message.encode()) # Send the message to the server
 
 # Function to receive messages from the server        
 def get(): 
     while True:
         try: # Try to receive messages from the server
-            message = client.recv(1024).decode()
+            message = client.recv(2048).decode()
             if message == 'Please enter your name:': # If the server asks for the name, send the name
                 client.send(name.encode())
             else:
