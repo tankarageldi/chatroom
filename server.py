@@ -14,26 +14,29 @@ ip = str(sys.argv[1]) # Get the IP address from the command line
 port = int(sys.argv[2]) # Get the port number from the command line
 server.bind((ip, port)) # Bind the socket to the IP address and port number
 
-server.listen(10) # Listen for incoming connections
+server.listen(50) # Listen for incoming connections
 clients = [] # List of clients connected to the server.
 client_names = [] # List of names of clients connected to the server.
 
-def broadcast(message):
-    for client in clients:
-        client.send(message)
-def thread(connection,address):
-    while True:
+
+def broadcast(message): # Function to broadcast a message to all clients
+    for client in clients: # Iterate through the list of clients
+        client.send(message) # Send the message to the client
+def thread(connection,address): # Function to handle the connection with the client
+    while True: # Infinite loop to keep the connection alive
             chat = client.recv(1024) # Receive a message from the client
-            if chat: 
-                print(client_names[clients.index(client)] + " < " + address[0] + "> " +  chat)
-                chat_to_send = client_names[clients.index(client)] + " < " + address[0] + "> " + chat
-                broadcast(chat_to_send,connection) # Broadcast the message to all clients
+            if chat:  
+                print(client_names[clients.index(client)] + " < " + address[0] + "> " +  chat) # Print the message received from the client
+                chat_to_send = client_names[clients.index(client)] + " < " + address[0] + "> " + chat # Create a message to broadcast
+                broadcast(chat_to_send) # Broadcast the message to all clients
             else:  
-                if connection in clients:
+                if connection in clients: 
                     clients.remove(connection) # Remove the client from the list of clients
                     client_names.remove(client_names[clients.index(connection)]) # Remove the name of the client from the list of names
            
 while True:
+    print("Server is running...")
+    print("Waiting for connection...")
     client,address = server.accept() # Accept a connection from a client
     print("Connection established with: ", address) # Print the address of the client
     client.send("Please enter your name: ".encode()) # Send a message to the client to enter their name
