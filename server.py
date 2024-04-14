@@ -1,59 +1,25 @@
-import socket
+import socket 
 import threading
+import sys
+import select 
 
-# Server configuration
-HOST = 'localhost'
-PORT = 5000
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
 
-# List to store connected clients
-clients = []
+# checks whether sufficient arguments have been provided 
+if len(sys.argv) != 3: 
+    print("Wrong input arguments!")
+    print("Please enter as follows: python server.py <IP address> <port number>")
+    exit()
 
-# Function to handle client connections
-def handle_client(client_socket, client_address):
-    while True:
-        try:
-            # Receive message from client
-            message = client_socket.recv(1024).decode('utf-8')
-            if message:
-                # Broadcast message to all connected clients
-                broadcast(message, client_socket)
-            else:
-                # If no message received, remove client from list and close connection
-                remove_client(client_socket)
-                break
-        except:
-            # If error occurs, remove client from list and close connection
-            remove_client(client_socket)
-            break
+ip = str(sys.argv[1]) # Get the IP address from the command line
+port = int(sys.argv[2]) # Get the port number from the command line
+server.bind((ip, port)) # Bind the socket to the IP address and port number
 
-# Function to broadcast message to all connected clients
-def broadcast(message, sender_socket):
-    for client in clients:
-        if client != sender_socket:
-            client.send(message.encode('utf-8'))
+server.listen(10) # Listen for incoming connections
+clients = [] # List of clients connected to the server.
+client_names = [] # List of names of clients connected to the server.
 
-# Function to remove client from list
-def remove_client(client_socket):
-    if client_socket in clients:
-        clients.remove(client_socket)
 
-# Function to start the server
-def start_server():
-    # Create server socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen()
 
-    print(f"Server started on {HOST}:{PORT}")
 
-    while True:
-        # Accept client connection
-        client_socket, client_address = server_socket.accept()
-        clients.append(client_socket)
 
-        # Start a new thread to handle the client connection
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
-        client_thread.start()
-
-# Start the server
-start_server()
