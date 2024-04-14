@@ -1,2 +1,2 @@
-# chatroom
-Chat room server and client
+# Chatroom
+Chat room server and client using python. 
