@@ -1,42 +1,92 @@
 import socket
 import sys
 import threading
+import time
 
+def create_client():
+    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-name = input("Enter your name: ") # Get the name of the client
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
+class ChatClient:
+    def __init__(self):
+        self.name = input("Enter your name: ")
+        self.client = create_client()
+        self.connected = False
 
-# checks whether sufficient arguments have been provided 
-if len(sys.argv) != 3: 
-    print("Wrong input arguments!")
-    print("Please enter as follows: python client.py <Server IP address> <Server port number>")
-    exit()
+    def connect(self, ip, port, max_retries=3):
+        retries = 0
+        while retries < max_retries:
+            try:
+                self.client.connect((ip, port))
+                self.connected = True
+                print(f"Connected to server at {ip}:{port}")
+                return True
+            except socket.error as e:
+                print(f"Connection attempt {retries + 1} failed: {e}")
+                retries += 1
+                if retries < max_retries:
+                    print("Retrying in 3 seconds...")
+                    time.sleep(3)
+                    self.client = create_client()
+        
+        print("Failed to connect to server after multiple attempts")
+        return False
 
-ip = str(sys.argv[1]) # Get the IP address from the command line
-port = int(sys.argv[2]) # Get the port number from the command line
-client.connect((ip, port)) # Connect to the server
+    def send_message(self):
+        while self.connected:
+            try:
+                message = input('')
+                if message.lower() == 'quit':
+                    self.connected = False
+                    break
+                full_message = f'{self.name} : {message}'
+                self.client.send(full_message.encode())
+            except socket.error as e:
+                print(f"Error sending message: {e}")
+                self.connected = False
+                break
 
-# Function to send messages to the server
-def send():
-    while True:
-        message = '{} : {}'.format(name, input(''))
-        client.send(message.encode()) # Send the message to the server
+    def receive_messages(self):
+        while self.connected:
+            try:
+                message = self.client.recv(2048).decode()
+                if not message:
+                    break
+                if message == 'Please enter your name:':
+                    self.client.send(self.name.encode())
+                else:
+                    print(message)
+            except socket.error as e:
+                print(f"Error receiving message: {e}")
+                self.connected = False
+                break
 
-# Function to receive messages from the server        
-def get(): 
-    while True:
-        try: # Try to receive messages from the server
-            message = client.recv(2048).decode()
-            if message == 'Please enter your name:': # If the server asks for the name, send the name
-                client.send(name.encode())
-            else:
-                print(message)
-        except: # If an error occurs, close the connection with the server
-            client.close()
-            break
+    def start(self):
+        receive_thread = threading.Thread(target=self.receive_messages)
+        receive_thread.daemon = True
+        receive_thread.start()
 
-thread_get = threading.Thread(target=get)
-thread_get.start()
+        send_thread = threading.Thread(target=self.send_message)
+        send_thread.daemon = True
+        send_thread.start()
 
-thread_send = threading.Thread(target=send)
-thread_send.start()
+        while self.connected:
+            time.sleep(0.1)
+        
+        print("Disconnected from server")
+        self.client.close()
+
+def main():
+    if len(sys.argv) != 3:
+        print("Wrong input arguments!")
+        print("Please enter as follows: python client.py <Server IP address> <Server port number>")
+        return
+
+    ip = str(sys.argv[1])
+    port = int(sys.argv[2])
+    
+    client = ChatClient()
+    if client.connect(ip, port):
+        client.start()
+
+if __name__ == "__main__":
+    main()

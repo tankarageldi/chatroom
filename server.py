@@ -2,59 +2,102 @@ import socket
 import sys
 import threading
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# checks whether sufficient arguments have been provided 
-if len(sys.argv) != 3: 
+if len(sys.argv) != 2: 
     print("Wrong input arguments!")
-    print("Please enter as follows: python server.py <IP address> <port number>")
+    print("Please enter as follows: python server.py <port number>")
     exit()
 
-ip = str(sys.argv[1]) # Get the IP address from the command line
-port = int(sys.argv[2]) # Get the port number from the command line
-server.bind((ip, port)) # Bind the socket to the IP address and port number
+# Listen on all available interfaces using ''
+HOST = ''  # Empty string means listen on all available interfaces
+port = int(sys.argv[1])
 
-server.listen() # Listen for incoming connections
-clients = [] # List of clients connected to the server.
-client_names = [] # List of names of clients connected to the server.
+try:
+    server.bind((HOST, port))
+except socket.error as e:
+    print(f"Binding failed: {e}")
+    sys.exit()
 
+server.listen(5)  # Allow up to 5 queued connections
 
-def broadcast(message): # Function to broadcast a message to all clients
-    for client in clients: # Iterate through the list of clients
-        client.send(message) # Send the message to the client
+clients = []
+client_names = []
 
-def thread(connection,address): # Function to handle the connection with the client
-    while True: # Infinite loop to keep the connection alive
-            chat = connection.recv(2048) # Receive a message from the client
+# Rest of your server code remains the same, but add better error handling
+def broadcast(message):
+    disconnected_clients = []
+    for client in clients:
+        try:
+            client.send(message)
+        except socket.error:
+            disconnected_clients.append(client)
+    
+    # Clean up disconnected clients
+    for client in disconnected_clients:
+        handle_disconnect(client)
+
+def handle_disconnect(connection):
+    if connection in clients:
+        i = clients.index(connection)
+        clients.remove(connection)
+        connection.close()
+        name = client_names[i]
+        client_names.remove(name)
+        broadcast(f"{name} left the chat room!".encode())
+
+def thread(connection, address):
+    while True:
+        try:
+            chat = connection.recv(2048)
             if chat:
-                print("< "+ address[0] +" > " + chat.decode()) # Print the message received from the client
-                broadcast(chat) # Broadcast the message to all clients
-            else:  
-                i = clients.index(connection) # Get the index of the client
-                clients.remove(connection) # Remove the client from the list of clients
-                connection.close() # Close the connection with the client
-                name = client_names[i] # Get the name of the client
-                client_names.remove(name) # Remove the name of the client from the list of names
+                print(f"< {address[0]} > {chat.decode()}")
+                broadcast(chat)
+            else:
+                handle_disconnect(connection)
+                break
+        except socket.error:
+            handle_disconnect(connection)
+            break
 
 def start():
-    print("Server is running on IP: ", ip, " and port: ", port) # Print the IP address and port number of the server
-    print("Waiting for connections...") # Print that the server is waiting for connections
+    print(f"Server is running on all available interfaces on port: {port}")
+    print("Local IP addresses this server is available on:")
+    
+    # Show all IP addresses where the server is available
+    hostname = socket.gethostname()
+    addresses = socket.getaddrinfo(hostname, None)
+    for addr in addresses:
+        if addr[0] == socket.AF_INET:  # Only show IPv4 addresses
+            print(f"  - {addr[4][0]}")
+    
+    print("\nWaiting for connections...")
+    
     while True:
-        client,address = server.accept() # Accept a connection from a client
-        print("Connection established with: ", address) # Print the address of the client
+        try:
+            client, address = server.accept()
+            print(f"Connection established with: {address}")
 
-        client.send('Please enter your name:'.encode()) # Send a message to the client to enter their name
-        name = client.recv(2048).decode() # Receive the name of the client
+            client.send('Please enter your name:'.encode())
+            name = client.recv(2048).decode()
 
-        client_names.append(name) # Append the name of the client to the list of names
-        clients.append(client) # Append the client to the list of clients
+            client_names.append(name)
+            clients.append(client)
 
-        print("Name of the client is: ", name) # Print the name of the client
-        broadcast("{} joined the chat room!".format(name).encode()) # Broadcast the message that the client has joined the chat room
+            print(f"Name of the client is: {name}")
+            broadcast(f"{name} joined the chat room!".encode())
 
-        # Start Handling Thread For Client
-        th = threading.Thread(target=thread, args=(client,address))
-        th.start()
+            th = threading.Thread(target=thread, args=(client, address))
+            th.start()
+        except socket.error as e:
+            print(f"Error accepting connection: {e}")
+            continue
 
-
-start() # Start the function to accept connections from clients
+if __name__ == "__main__":
+    try:
+        start()
+    except KeyboardInterrupt:
+        print("\nServer shutting down...")
+        for client in clients:
+            client.close()
+        server.close()
